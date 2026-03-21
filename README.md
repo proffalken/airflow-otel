@@ -1,5 +1,10 @@
 # airflow-otel
 
+[![CI](https://github.com/proffalken/airflow-otel/actions/workflows/ci.yml/badge.svg)](https://github.com/proffalken/airflow-otel/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/airflow-otel.svg)](https://pypi.org/project/airflow-otel/)
+[![Python versions](https://img.shields.io/pypi/pyversions/airflow-otel.svg)](https://pypi.org/project/airflow-otel/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 OpenTelemetry instrumentation for Apache Airflow tasks.
 
 Wraps Airflow task execution with traces, metrics, and logs exported via OTLP. Designed to work with any OpenTelemetry-compatible backend (Jaeger, Tempo, Dash0, Honeycomb, etc.) — point it at your collector and go.
@@ -13,16 +18,23 @@ Wraps Airflow task execution with traces, metrics, and logs exported via OTLP. D
 - Cardinality-safe: high-cardinality values (`run_id`, `try_number`, `logical_date`) go on span/log attributes, never on resource attributes
 - `get_tracer()` / `get_meter()` give you access for custom child spans and metrics inside tasks
 
+## Compatibility
+
+| Airflow | Python | Status |
+|---------|--------|--------|
+| 2.5 – 2.x | 3.9 – 3.13 | Supported |
+| 3.x | 3.9 – 3.13 | Supported |
+
 ## Installation
 
 ```bash
-pip install airflow-otel
+uv add airflow-otel
 ```
 
-Or with [uv](https://github.com/astral-sh/uv):
+Or with pip:
 
 ```bash
-uv add airflow-otel
+pip install airflow-otel
 ```
 
 ## Configuration
@@ -152,3 +164,7 @@ uv run pytest --cov=airflow_otel
 ```
 
 Tests use an in-memory span exporter — no running collector required.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
