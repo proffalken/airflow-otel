@@ -9,6 +9,9 @@ OpenTelemetry instrumentation for Apache Airflow tasks.
 
 Wraps Airflow task execution with traces, metrics, and logs exported via OTLP. Designed to work with any OpenTelemetry-compatible backend (Jaeger, Tempo, Dash0, Honeycomb, etc.) — point it at your collector and go.
 
+![The Airflow Console View](media/AirflowConsole.png)
+![The data in Dash0's Service Map](media/Dash0TraceView.png)
+
 ## Features
 
 - Creates a `CONSUMER` root span per task execution named `{dag_id}.{task_id}`
