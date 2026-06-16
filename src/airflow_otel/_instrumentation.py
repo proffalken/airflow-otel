@@ -159,9 +159,14 @@ def setup_otel(
     span_exporter = _exporter_override if _exporter_override is not None else (_TEST_EXPORTER or _make_exporter())
     processor = SimpleSpanProcessor(span_exporter) if is_test else BatchSpanProcessor(span_exporter)
 
+    # Only derive a deterministic trace ID when we have a real run_id.
+    # The sentinel "unknown-run" would collapse all fallback tasks into one trace.
+    _id_generator: IdGenerator = (
+        _DagRunIdGenerator(dag_id, run_id) if run_id != "unknown-run" else RandomIdGenerator()
+    )
     _tracer_provider = TracerProvider(
         resource=resource,
-        id_generator=_DagRunIdGenerator(dag_id, run_id),
+        id_generator=_id_generator,
     )
     _tracer_provider.add_span_processor(processor)
 
