@@ -12,6 +12,7 @@ unbounded metric time series.
 """
 
 import functools
+import hashlib
 import logging
 import os
 import traceback
@@ -31,6 +32,7 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor, SpanExporter
+from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import SpanKind, StatusCode
 
 from airflow_otel._context import extract_airflow_context
@@ -44,6 +46,40 @@ _logger_provider: Optional[LoggerProvider] = None
 # When set, SimpleSpanProcessor is used so spans are captured synchronously.
 # Reset to None after each test.
 _TEST_EXPORTER: Optional[SpanExporter] = None
+
+
+class _DagRunIdGenerator(IdGenerator):
+    """Generate a trace ID deterministically from ``(dag_id, run_id)``.
+
+    Cross-task linking happens via XCom W3C context, and tasks nest under
+    Airflow's managed task span when it is active in-process (LocalExecutor).
+    On distributed executors (Celery / Kubernetes) every task runs in its own
+    worker process, so neither the in-process parent context nor — for any edge
+    where XCom propagation is unavailable — the upstream carrier is present, and
+    each task would otherwise mint a random root trace ID and scatter across
+    separate traces. Deriving the root trace ID from the DAG run puts every task
+    that starts a root span into the same trace regardless of executor.
+
+    Span IDs remain random. When a parent context IS present (active managed
+    span, or an upstream XCom carrier) that parent's trace ID wins — this
+    generator only supplies trace IDs for genuine root spans.
+    """
+
+    def __init__(self, dag_id: str, run_id: str) -> None:
+        self._trace_id = self._derive_trace_id(dag_id, run_id)
+        self._random = RandomIdGenerator()
+
+    @staticmethod
+    def _derive_trace_id(dag_id: str, run_id: str) -> int:
+        digest = hashlib.sha256(f"{dag_id}:{run_id}".encode()).digest()
+        trace_id = int.from_bytes(digest[:16], "big")
+        return trace_id or 1  # trace_id of 0 is invalid per spec
+
+    def generate_span_id(self) -> int:
+        return self._random.generate_span_id()
+
+    def generate_trace_id(self) -> int:
+        return self._trace_id
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +159,10 @@ def setup_otel(
     span_exporter = _exporter_override if _exporter_override is not None else (_TEST_EXPORTER or _make_exporter())
     processor = SimpleSpanProcessor(span_exporter) if is_test else BatchSpanProcessor(span_exporter)
 
-    _tracer_provider = TracerProvider(resource=resource)
+    _tracer_provider = TracerProvider(
+        resource=resource,
+        id_generator=_DagRunIdGenerator(dag_id, run_id),
+    )
     _tracer_provider.add_span_processor(processor)
 
     if is_test:
